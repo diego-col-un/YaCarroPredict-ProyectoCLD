@@ -1,0 +1,10 @@
+{
+  "filter-year-limits": {
+    "min": "1946",
+    "max": "2027"
+  },
+  "filter-kilometer-limits": {
+    "min": "0",
+    "max": "100001 +"
+  }
+}
