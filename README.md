@@ -17,6 +17,10 @@
 
 🌐 **Aplicación en Vivo:** [https://yacarropredict-proyectocld.onrender.com/#cotizar](https://yacarropredict-proyectocld.onrender.com/#cotizar)
 
+<br>
+
+![Demostración en Vivo](evidencias/demo.gif)
+
 </div>
 
 ---
