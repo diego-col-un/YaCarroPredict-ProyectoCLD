@@ -41,12 +41,33 @@ try:
     import firebase_admin
     from firebase_admin import credentials, firestore
 
-    if not firebase_admin._apps:
-        cred = credentials.Certificate(KEY_PATH)
-        firebase_admin.initialize_app(cred)
+    # Buscar la clave en múltiples ubicaciones (Render monta secretos en /etc/secrets/)
+    posibles_rutas = [
+        os.path.join(os.path.dirname(__file__), "serviceAccountKey.json"),  # Backend/
+        os.path.join(BASE_DIR, "serviceAccountKey.json"),                    # Raíz del repo
+        "/etc/secrets/serviceAccountKey.json",                              # Render Secret Files
+        os.environ.get("FIREBASE_KEY_PATH", "")                             # Variable opcional
+    ]
 
-    db = firestore.client()
-    print("[YaCarroPredict] ✅ Firestore conectado correctamente.")
+    cred = None
+    # 1. Si existe en variable de entorno como texto JSON directo
+    if os.environ.get("FIREBASE_CREDENTIALS_JSON"):
+        info_json = json.loads(os.environ["FIREBASE_CREDENTIALS_JSON"])
+        cred = credentials.Certificate(info_json)
+    else:
+        # 2. Buscar en las rutas de archivo
+        for ruta in posibles_rutas:
+            if ruta and os.path.exists(ruta):
+                cred = credentials.Certificate(ruta)
+                print(f"[YaCarroPredict] Usando credencial Firebase desde: {ruta}")
+                break
+
+    if cred and not firebase_admin._apps:
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        print("[YaCarroPredict] ✅ Firestore conectado correctamente.")
+    elif not cred:
+        print("[YaCarroPredict ⚠️] No se encontró el archivo serviceAccountKey.json en ninguna ruta conocida.")
 except Exception as e:
     print(f"[YaCarroPredict ⚠️] Firestore NO disponible: {e}")
     print("  → Las predicciones se realizarán igual, pero no se guardarán.")
