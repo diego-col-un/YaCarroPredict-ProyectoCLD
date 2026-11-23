@@ -120,7 +120,7 @@ Un precio imposible no se puede imputar sin inventar la respuesta que el modelo 
 
 Los precios altos no se eliminan: pueden ser vehículos genuinos. El notebook lista los diez más altos para revisarlos.
 
-**Transformación logarítmica.** Las regresiones se entrenan sobre `log(1 + precio)` porque la distribución es muy sesgada a la derecha y el error relativo importa más que el absoluto: equivocarse por 5 millones pesa distinto en un carro de 20 millones que en uno de 300. Las métricas finales (MAE, RMSE, MAPE) se reportan en pesos, revirtiendo la transformación con `a_pesos`.
+**Transformación logarítmica.** Las regresiones se entrenan sobre `log(1 + precio)` porque la distribución es muy sesgada a la derecha y el error relativo importa más que el absoluto: equivocarse por 5 millones pesa distinto en un carro de 20 millones que en uno de 300. La transformación inversa va incluida en el modelo guardado (`TransformedTargetRegressor`), así que `predict` devuelve pesos y las métricas finales (MAE, RMSE, MAPE) se calculan directamente en pesos. Con esta decisión, el R² sobre `log(precio)` en validación es 0,914 con Gradient Boosting y 0,873 con Random Forest, frente a 0,000 del baseline.
 
 ### 4.6 Variables nuevas
 
@@ -138,7 +138,7 @@ División aleatoria 70 % entrenamiento, 15 % validación y 15 % prueba. Es aleat
 
 ### 4.9 Transformaciones
 
-**Discretización de `antiguedad`.** El notebook compara tres estrategias (igual ancho, igual frecuencia y k-means) con cinco intervalos, midiendo con la correlación de Spearman cuánta relación con el precio se pierde al discretizar. Se decide no discretizar en el pipeline: los árboles encuentran sus propios puntos de corte y la variable continua conserva al menos tanta relación con el precio como cualquier versión discretizada.
+**Discretización de `antiguedad`.** El notebook compara tres estrategias (igual ancho, igual frecuencia y k-means) con cinco intervalos, midiendo con la correlación de Spearman cuánta relación con el precio se pierde al discretizar. Se decide no discretizar en el pipeline: los árboles encuentran sus propios puntos de corte y la variable continua conserva al menos tanta relación con el precio como cualquier versión discretizada. El modelo 3 es una Regresión Logística (lineal) y en principio podría beneficiarse de intervalos; no se evaluó una versión discretizada, y con la variable continua ya alcanza un F1 macro de 0,854 en validación con la configuración inicial (`C = 1`), por lo que se mantiene sin discretizar.
 
 **Codificación de categóricas.** One-Hot con las categorías de menos de 30 avisos agrupadas en una sola columna.
 
@@ -150,7 +150,7 @@ División aleatoria 70 % entrenamiento, 15 % validación y 15 % prueba. Es aleat
 
 La agrupación de raras reduce el ruido de `marca_modelo`, que tiene cientos de categorías, y permite que una categoría no vista en entrenamiento caiga en el grupo de raras sin romper el backend.
 
-**Escalado.** `kilometraje` y `km_por_anio` llevan `log1p` y luego `RobustScaler`; `antiguedad` y `cilindraje` solo `RobustScaler`. El escalado robusto usa mediana y rango intercuartílico, así que los extremos que sobreviven a la limpieza no dominan la escala. El `log1p` está condicionado a la evidencia: el notebook calcula si realmente reduce la asimetría y, si no lo hace (puede pasar con muchos vehículos casi nuevos, con kilometraje cercano a 0), se desactiva con el interruptor `USAR_LOG_NUMERICAS`. Los árboles no necesitan escalado, pero la Regresión Logística sí, y un mismo preprocesador sirve a los tres modelos.
+**Escalado.** `kilometraje` y `km_por_anio` llevan `log1p` y luego `RobustScaler`; `antiguedad` y `cilindraje` solo `RobustScaler`. El escalado robusto usa mediana y rango intercuartílico, así que los extremos que sobreviven a la limpieza no dominan la escala. El `log1p` está condicionado a la evidencia: el notebook calcula si realmente reduce la asimetría y, si no lo hace (puede pasar con muchos vehículos casi nuevos, con kilometraje cercano a 0), se desactiva con el interruptor `USAR_LOG_NUMERICAS`. Los árboles (modelos 1 y 2) no necesitan escalado, pero la Regresión Logística (modelo 3) sí, y un mismo preprocesador sirve a los tres modelos. Que el modelo lineal alcance un F1 macro de 0,854 en validación con la configuración inicial sugiere que el escalado y la codificación son adecuados.
 
 **Imputación.** Mediana para numéricas (robusta a extremos) y la categoría `NO INFORMADO` para categóricas. Además se agregan indicadores de faltante para `kilometraje` y `cilindraje`, porque que un dato falte puede ser informativo. La mediana se calcula solo con entrenamiento.
 
@@ -161,10 +161,11 @@ La agrupación de raras reduce el ruido de `marca_modelo`, que tiene cientos de 
 El requisito del enunciado es que el mismo preprocesamiento se aplique a los datos nuevos. Se cumple así:
 
 - El `Pipeline` de preprocesamiento recibe las 10 columnas crudas del formulario. Dentro, el primer paso normaliza texto, sanea numéricos y crea las variables derivadas con la misma función que se usó en el entrenamiento.
-- El preprocesador se ajusta una sola vez con entrenamiento y se guarda con `joblib`. Cada modelo final se guardará como un `Pipeline` completo (preprocesamiento más algoritmo), de modo que el backend carga un archivo por modelo y llama a `predict`.
+- El preprocesador se ajusta una sola vez con entrenamiento y se guarda con `joblib`. Cada modelo final se guarda como un `Pipeline` completo (preprocesamiento más algoritmo), de modo que el backend carga un archivo por modelo y llama a `predict`.
 - El notebook verifica la reproducibilidad: recarga el archivo guardado, comprueba que produce la misma matriz y prueba una entrada escrita a mano sin normalizar (por ejemplo `chevrolet`, `Antioquia`).
 - El backend debe poder importar `preprocesamiento.py`, porque `joblib` guarda las funciones por referencia al módulo.
-- Las predicciones de regresión salen en escala logarítmica y se convierten a pesos con `a_pesos` antes de mostrarlas.
+- Los modelos de regresión se entrenan sobre `log(1 + precio)`, pero el archivo guardado incluye la transformación inversa (`TransformedTargetRegressor`): `predict` ya devuelve pesos y el backend no debe convertir nada. El modelo de clasificación devuelve probabilidades por segmento con `predict_proba`.
+- La versión de scikit-learn con que se guardaron los modelos queda registrada en `metadatos_modelos.json`; el backend debe usar la misma.
 
 ---
 
@@ -196,6 +197,7 @@ El requisito del enunciado es que el mismo preprocesamiento se aplique a los dat
 - **Hipótesis de litros.** La conversión del cilindraje de 1 a 9 se basa en una hipótesis. Si la evidencia del notebook no la respalda, se desactiva con `CONVERTIR_LITROS`.
 - **Fusión de categorías.** La regla de normalización puede dejar sin unir variantes que significan lo mismo; conviene revisar la tabla del notebook.
 - **Variables descartadas que podrían mejorar el modelo.** `version` es la primera candidata (mucho valor informativo, pero miles de categorías). También `ciudad` y `blindado`. Conviene probarlas solo si las métricas lo justifican.
+- **Variables con poca importancia.** En la importancia por permutación sobre validación, `departamento` y `tipo_vendedor` quedaron en 0,00 en los dos modelos de regresión, mientras que `anio` es la más influyente (0,37 en Gradient Boosting). Es evidencia a favor de quitar esas dos entradas del formulario, pero antes hay que reentrenar sin ellas y comprobar que las métricas no empeoran. La importancia por permutación subestima variables correlacionadas (`modelo` con `marca`, `kilometraje` con `anio`), así que esas dos no deben descartarse por este criterio.
 - **Datos de un solo corte.** Los precios son de avisos publicados, no de ventas cerradas, y reflejan un momento del mercado. Los modelos no capturan la evolución del precio en el tiempo.
 - **Licencia.** El dataset no tiene licencia abierta identificada; el uso es académico, y esto debe constar en el informe junto con la fuente y la fecha de obtención.
 - **Si se cambia un parámetro**, hay que ejecutar de nuevo todo el notebook para regenerar el preprocesador, las particiones y la auditoría.
@@ -217,3 +219,20 @@ El requisito del enunciado es que el mismo preprocesamiento se aplique a los dat
 | Comparación de discretización, codificación y escalado | Secciones 10.1, 10.2 y 10.3 |
 | Número de columnas de la matriz final | Sección 11 |
 | Filas que quedan después de cada etapa | Tabla «Resumen del proceso» al final |
+
+---
+
+## 9. Validación de las decisiones con los resultados del entrenamiento
+
+Resultados en la partición de **validación** (la de prueba no se usó para decidir nada):
+
+| Indicador | Baseline (mediana) | Gradient Boosting | Random Forest |
+|---|---|---|---|
+| MAE | 33,7 M | 9,3 M | 12,3 M |
+| MAPE | 55,5 % | 12,4 % | 15,6 % |
+| R² sobre `log(precio)` | 0,000 | 0,914 | 0,873 |
+
+- **Sin señales de fuga de datos.** El MAPE pasa de 10,0 % en entrenamiento a 12,4 % en validación (Gradient Boosting) y de 13,8 % a 15,6 % (Random Forest). Una brecha pequeña es lo esperable si el preprocesamiento se ajustó solo con entrenamiento.
+- **La partición es representativa.** El RMSE de prueba es 0,94 veces el de validación en ambos modelos, es decir, prueba y validación se comportan igual.
+- **Clasificación.** Con la configuración inicial (`C = 1`), la Regresión Logística obtiene un F1 macro de 0,854 en validación, frente a 0,169 del baseline. Actualiza esta cifra con la salida de la sección 5 del notebook de entrenamiento una vez ajustado `C`.
+- Las métricas completas, los hiperparámetros finales y el análisis de sobreajuste van en el documento de modelos e hiperparámetros.
