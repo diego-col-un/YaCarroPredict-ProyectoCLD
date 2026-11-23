@@ -1,0 +1,158 @@
+{
+  "fecha_entrenamiento": "2026-11-22T20:59:03",
+  "versiones": {
+    "python": "3.11.7",
+    "scikit_learn": "1.9.1",
+    "pandas": "3.0.6",
+    "numpy": "2.4.6"
+  },
+  "semilla": 42,
+  "validacion_cruzada": {
+    "particiones": 3,
+    "modo_rapido": false
+  },
+  "columnas_entrada": [
+    "marca",
+    "modelo",
+    "anio",
+    "kilometraje",
+    "combustible",
+    "transmision",
+    "cilindraje",
+    "carroceria",
+    "departamento",
+    "tipo_vendedor"
+  ],
+  "particiones": {
+    "train": 14261,
+    "val": 3056,
+    "test": 3056
+  },
+  "segmento": {
+    "etiquetas": [
+      "BAJO",
+      "MEDIO",
+      "ALTO"
+    ],
+    "cortes": [
+      43333333.333333306,
+      73000000.0
+    ]
+  },
+  "modelos": {
+    "regresion_gb": {
+      "algoritmo": "HistGradientBoostingRegressor sobre log1p(precio); predice en pesos",
+      "archivo": "modelo_regresion_gb.joblib",
+      "mejores_hiperparametros": {
+        "l2_regularization": 0.02161894240657444,
+        "learning_rate": 0.0416857934827831,
+        "max_depth": 6,
+        "max_leaf_nodes": 36,
+        "min_samples_leaf": 11
+      },
+      "metricas": {
+        "train": {
+          "MAE": 7378497.275026881,
+          "RMSE": 18689279.130568862,
+          "MAPE_%": 10.004538877465787,
+          "R2": 0.8882141299357467,
+          "R2_log": 0.9452955545972932
+        },
+        "val": {
+          "MAE": 9332910.545864023,
+          "RMSE": 22565612.85427015,
+          "MAPE_%": 12.356266424573132,
+          "R2": 0.8507576841708125,
+          "R2_log": 0.9137109058123857
+        },
+        "test": {
+          "MAE": 9040110.36037004,
+          "RMSE": 21255993.75963919,
+          "MAPE_%": 11.683551816437717,
+          "R2": 0.8621502552701332,
+          "R2_log": 0.9202895918258691
+        }
+      },
+      "intervalo_empirico": {
+        "nivel": 0.8,
+        "error_relativo_inferior": -0.1656054670607838,
+        "error_relativo_superior": 0.20473614279171515,
+        "cobertura_en_prueba": 0.8147905759162304
+      }
+    },
+    "regresion_rf": {
+      "algoritmo": "RandomForestRegressor sobre log1p(precio); predice en pesos",
+      "archivo": "modelo_regresion_rf.joblib",
+      "mejores_hiperparametros": {
+        "n_estimators": 100,
+        "min_samples_leaf": 8,
+        "max_features": 0.33,
+        "max_depth": 12
+      },
+      "metricas": {
+        "train": {
+          "MAE": 10659670.081945946,
+          "RMSE": 26974013.25463564,
+          "MAPE_%": 13.801980374559847,
+          "R2": 0.7671410452143925,
+          "R2_log": 0.8974929640236273
+        },
+        "val": {
+          "MAE": 12292466.23138559,
+          "RMSE": 31470803.57455728,
+          "MAPE_%": 15.556562115574657,
+          "R2": 0.7097224972051748,
+          "R2_log": 0.8733814460844023
+        },
+        "test": {
+          "MAE": 12122207.43757935,
+          "RMSE": 29784352.7417011,
+          "MAPE_%": 14.794732625343766,
+          "R2": 0.7293428703534067,
+          "R2_log": 0.8765345786192196
+        }
+      },
+      "intervalo_empirico": {
+        "nivel": 0.8,
+        "error_relativo_inferior": -0.20033094252794933,
+        "error_relativo_superior": 0.2789806550955014,
+        "cobertura_en_prueba": 0.8196989528795812
+      }
+    },
+    "clasificacion_segmento": {
+      "algoritmo": "LogisticRegression (multinomial, regularización L2) sobre segmento_precio",
+      "archivo": "modelo_clasificacion_segmento.joblib",
+      "clases": [
+        "ALTO",
+        "BAJO",
+        "MEDIO"
+      ],
+      "mejores_hiperparametros": {
+        "C": 30
+      },
+      "metricas": {
+        "train": {
+          "accuracy": 0.8643152654091578,
+          "precision_macro": 0.8642513859428048,
+          "recall_macro": 0.8644334943635622,
+          "F1_macro": 0.8643214249000337,
+          "AUC_ROC_macro": 0.9634211617264444
+        },
+        "val": {
+          "accuracy": 0.8517670157068062,
+          "precision_macro": 0.8528829662399233,
+          "recall_macro": 0.852237449813134,
+          "F1_macro": 0.8524675658736096,
+          "AUC_ROC_macro": 0.9570594472867029
+        },
+        "test": {
+          "accuracy": 0.8596204188481675,
+          "precision_macro": 0.8593753937965082,
+          "recall_macro": 0.8593704769569698,
+          "F1_macro": 0.8592764074709208,
+          "AUC_ROC_macro": 0.9593405005580941
+        }
+      }
+    }
+  }
+}

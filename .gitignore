@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+.env
+venv/
+env/
+
+# Firebase — NUNCA subir la clave privada
+Backend/serviceAccountKey.json

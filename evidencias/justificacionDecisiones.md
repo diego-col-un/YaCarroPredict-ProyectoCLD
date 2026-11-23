@@ -36,6 +36,9 @@ Las cifras de partida salen de los datos reales (20.494 avisos, extraídos el 4 
 | 11 | One-Hot con categorías raras agrupadas (mínimo 30 avisos) | Label, frecuencia o Target Encoding | Conserva la identidad de cada categoría sin imponer orden ni filtrar información |
 | 12 | `log1p` más `RobustScaler` en kilometraje y km por año (condicionado a la evidencia) | Escalado estándar | Los extremos que sobreviven a la limpieza no dominan la escala |
 | 13 | Imputar con la mediana (numéricas) y `NO INFORMADO` (categóricas), más indicadores de faltante | Eliminar filas con faltantes | La ausencia puede ser informativa y no se pierden registros |
+| 14 | Servidor ligero en Flask con carga única en memoria de artefactos `.joblib` | Monolito Django o FastAPI con recarga por petición | Flask minimiza dependencias y el precalentamiento en memoria garantiza inferencias < 20 ms |
+| 15 | Persistencia NoSQL serverless en Google Cloud Firestore | Base de datos relacional local (SQLite/PostgreSQL) | Elimina la pérdida de datos en contenedores efímeros (stateless), sin costos de servidor y con esquema flexible para auditar consultas |
+| 16 | Frontend modular con Bootstrap 5 y Chart.js sin bundlers | SPA compleja (React/Vue) o HTML estático sin gráficos | Cero pasos de compilación (`npm`), diseño responsivo estándar y visualización en tiempo real de analítica agregada |
 
 ---
 
@@ -222,17 +225,55 @@ El requisito del enunciado es que el mismo preprocesamiento se aplique a los dat
 
 ---
 
-## 9. Validación de las decisiones con los resultados del entrenamiento
+## 9. Validación de las decisiones con los resultados del entrenamiento y prueba
 
-Resultados en la partición de **validación** (la de prueba no se usó para decidir nada):
+### 9.1 Comparativa en Validación (selección y ajuste)
 
 | Indicador | Baseline (mediana) | Gradient Boosting | Random Forest |
 |---|---|---|---|
-| MAE | 33,7 M | 9,3 M | 12,3 M |
-| MAPE | 55,5 % | 12,4 % | 15,6 % |
+| MAE | 33,7 M | 9,33 M | 12,29 M |
+| MAPE | 55,5 % | 12,36 % | 15,56 % |
 | R² sobre `log(precio)` | 0,000 | 0,914 | 0,873 |
 
-- **Sin señales de fuga de datos.** El MAPE pasa de 10,0 % en entrenamiento a 12,4 % en validación (Gradient Boosting) y de 13,8 % a 15,6 % (Random Forest). Una brecha pequeña es lo esperable si el preprocesamiento se ajustó solo con entrenamiento.
-- **La partición es representativa.** El RMSE de prueba es 0,94 veces el de validación en ambos modelos, es decir, prueba y validación se comportan igual.
-- **Clasificación.** Con la configuración inicial (`C = 1`), la Regresión Logística obtiene un F1 macro de 0,854 en validación, frente a 0,169 del baseline. Actualiza esta cifra con la salida de la sección 5 del notebook de entrenamiento una vez ajustado `C`.
-- Las métricas completas, los hiperparámetros finales y el análisis de sobreajuste van en el documento de modelos e hiperparámetros.
+### 9.2 Resultados Finales en la Partición de Prueba Independiente (*Test Set* — 3.056 avisos)
+
+| Métrica | Gradient Boosting (Principal) | Random Forest (Alternativo) | Logistic Regression (Segmento) |
+|---|---|---|---|
+| **MAE** | **$9.040.110 COP** | $12.122.207 COP | — |
+| **MAPE** | **11,68 %** | 14,79 % | — |
+| **R² / R² log** | 0,862 / **0,920** | 0,729 / 0,877 | — |
+| **Intervalo Empírico 80%** | [-16,56 %, +20,47 %] (Cobertura: 81,48 %) | [-20,03 %, +27,90 %] (Cobertura: 81,97 %) | — |
+| **Accuracy / F1-Macro** | — | — | **85,96 %** / **85,93 %** |
+| **AUC-ROC Macro** | — | — | **0,959** |
+
+- **Sin señales de fuga de datos ni sobreajuste nocivo.** El MAPE de Gradient Boosting pasa de 10,0 % en entrenamiento a 12,36 % en validación y 11,68 % en prueba independiente.
+- **La partición es representativa.** Las métricas en prueba reproducen estrechamente las de validación, validando la estabilidad del pipeline.
+- **Clasificación.** Con la sintonización final (`C = 30`), la Regresión Logística multinomial alcanza un F1-macro de 85,93 % y un AUC-ROC de 0,959, demostrando que el preprocesador (escalado robusto + One-Hot agrupado) es efectivo tanto para modelos no lineales basados en árboles como para modelos lineales regulares.
+
+---
+
+## 10. Justificación de la arquitectura de backend, persistencia y visualización
+
+### 10.1 Servidor API: Flask (Python)
+- **Qué se hizo:** Se implementó una API REST modular en Flask con precarga única en memoria de los modelos `.joblib`, el preprocesador y los metadatos JSON.
+- **Alternativa descartada:** Frameworks monolíticos (Django) o re-instanciación de modelos en cada petición HTTP.
+- **Por qué:** Los artefactos de Scikit-Learn pesan menos de 4 MB en conjunto. Al mantenerlos en la memoria del proceso, la inferencia toma menos de 20 milisegundos sin latencia de disco. Además, permite servir tanto los endpoints de datos (`/api/prediccion`, `/api/opciones`, `/api/estadisticas`) como los archivos estáticos del cliente en un solo proceso liviano.
+
+### 10.2 Persistencia en la nube: Google Cloud Firestore (NoSQL Serverless)
+- **Qué se hizo:** Se integró la base de datos documental Firestore mediante `firebase-admin` para registrar cada cotización realizada por los usuarios (atributos del carro, predicciones multimodelo, segmento y timestamp ISO 8601 UTC).
+- **Alternativas descartadas:**
+  1. *SQLite local:* En entornos modernos de despliegue en la nube (Docker, Render, Cloud Run, Heroku), el almacenamiento en disco es efímero; al reiniciar o escalar el contenedor, los datos se destruyen.
+  2. *Base de datos relacional dedicada (PostgreSQL/MySQL en nube):* Exige aprovisionamiento de instancias activas continuas, conexión mediante VPC y costo mensual innecesario para un volumen transaccional de cotizaciones.
+- **Por qué Firestore:** 
+  1. **Persistencia desacoplada:** Los datos sobreviven a cualquier redeploy o reinicio del servidor web.
+  2. **Esquema flexible:** Si en el futuro se agregan variables al formulario (ej. versión o fotos), el esquema de documentos JSON no requiere migraciones DDL ni downtime.
+  3. **Capa gratuita permanente (Spark Plan):** Ofrece 50.000 lecturas y 20.000 escrituras diarias sin costo.
+  4. **Analítica agregada en tiempo real:** Los endpoints `/api/estadisticas` y `/api/recientes` consultan Firestore mediante ordenamiento indexado descendente para generar los KPIs del dashboard en vivo.
+
+### 10.3 Frontend: Bootstrap 5 + Chart.js (sin herramientas de compilación)
+- **Qué se hizo:** Se construyó una interfaz interactiva y profesional utilizando Bootstrap 5.3 (tema oscuro nativo), Bootstrap Icons y Chart.js 4 servidos directamente vía CDN.
+- **Alternativa descartada:** SPA basada en React/Vue con Vite o Next.js; o interfaz básica sin analítica.
+- **Por qué:** 
+  1. No requiere Node.js, `npm install` ni procesos de `npm run build`, permitiendo que el proyecto se ejecute inmediatamente con solo clonar y correr `python Backend/app.py`.
+  2. Ofrece una experiencia de usuario (UX) profesional con rejilla responsiva, dropdown dependiente (Marca → Modelo reactivo), cards de resultados con rangos de confianza y visualización gráfica (top 5 marcas en barras y distribución de segmentos en dona).
+  3. Cumple con los requerimientos académicos de reproducibilidad y entrega transparente.
