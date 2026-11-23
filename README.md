@@ -13,7 +13,7 @@
 <br>
 
 **Universidad Nacional de Colombia (UNAL)**  
-Facultad de Minas / Ciencias — *Ciencia de los Datos (2026)*
+— *Ciencia de los Datos (2026)* —
 
 🌐 **Aplicación en Vivo:** [https://yacarropredict-proyectocld.onrender.com/#cotizar](https://yacarropredict-proyectocld.onrender.com/#cotizar)
 
