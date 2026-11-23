@@ -2,7 +2,11 @@
 // YaCarroPredict — api.js
 // =============================================================================
 
-const API_BASE = window.location.origin.includes(":5000") ? "" : "http://localhost:5000";
+// Si se carga desde un servidor web (Flask local o Render en la nube), usamos rutas relativas ""
+// Solo si se abre directamente el archivo HTML (file://) o desde Live Server (puerto 5500) usamos localhost:5000
+const API_BASE = (window.location.protocol === "file:" || window.location.port === "5500")
+  ? "http://localhost:5000"
+  : "";
 
 let opcionesGlobales = null;
 
